@@ -12,43 +12,89 @@
 
         <h1>Biblioteca</h1>
 
-        <div id="livro">
-            Carregando...
-        </div>
+        <form id="cadastro-livro">
+            <h2>Cadastrar livro</h2>
+            <label for="titulo">Título</label>
+            <input id="titulo" name="titulo" type="text" required>
+            <label for="autor">Autor</label>
+            <input id="autor" name="autor" type="text" required>
+            <button type="submit">Cadastrar</button>
+            <p id="mensagem" role="status"></p>
+        </form>
+
+        <section aria-labelledby="lista-titulo">
+            <h2 id="lista-titulo">Livros</h2>
+            <div id="livros">Carregando...</div>
+        </section>
 
     </div>
 
-   <script>
-    function carregarLivro() {
-    fetch('/livro')
-        .then(response => response.json())
-        .then(livro => {
-            document.getElementById('livro').innerHTML = `
-                <h2>${livro.titulo}</h2>
-                <p>Autor: ${livro.autor}</p>
-                <p>Disponível: ${livro.disponivel ? 'Sim' : 'Não'}</p>
+    <script>
+        const listaLivros = document.getElementById('livros');
+        const mensagem = document.getElementById('mensagem');
 
-                ${
-                    livro.disponivel
-                    ? '<button class="disponivel" onclick="emprestarLivro()">Emprestar</button>'
-                    : '<button class="indisponivel" onclick="devolverLivro()">Devolver</button>'
+        async function carregarLivros() {
+            const resposta = await fetch('/livros');
+            const livros = await resposta.json();
+            listaLivros.replaceChildren();
+
+            livros.forEach((livro, indice) => {
+                const item = document.createElement('article');
+                const titulo = document.createElement('h3');
+                const autor = document.createElement('p');
+                const disponibilidade = document.createElement('p');
+                titulo.textContent = livro.titulo;
+                autor.textContent = `Autor: ${livro.autor}`;
+                disponibilidade.textContent = `Disponível: ${livro.disponivel ? 'Sim' : 'Não'}`;
+                item.append(titulo, autor, disponibilidade);
+
+                if (indice === 0) {
+                    const botao = document.createElement('button');
+                    botao.textContent = livro.disponivel ? 'Emprestar' : 'Devolver';
+                    botao.className = livro.disponivel ? 'disponivel' : 'indisponivel';
+                    botao.addEventListener('click', () => alterarEmprestimo(livro.disponivel));
+                    item.append(botao);
                 }
-            `;
+
+                listaLivros.append(item);
+            });
+        }
+
+        async function alterarEmprestimo(disponivel) {
+            await fetch(disponivel ? '/livro/emprestar' : '/livro/devolver');
+            await carregarLivros();
+        }
+
+        document.getElementById('cadastro-livro').addEventListener('submit', async (evento) => {
+            evento.preventDefault();
+            const formulario = evento.currentTarget;
+            const dados = new FormData(formulario);
+
+            try {
+                const resposta = await fetch('/livros', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        titulo: dados.get('titulo'),
+                        autor: dados.get('autor'),
+                        disponivel: true
+                    })
+                });
+
+                if (!resposta.ok) {
+                    throw new Error('Não foi possível cadastrar o livro.');
+                }
+
+                formulario.reset();
+                mensagem.textContent = 'Livro cadastrado.';
+                await carregarLivros();
+            } catch (erro) {
+                mensagem.textContent = erro.message;
+            }
         });
-    }
 
-    function emprestarLivro() {
-        fetch('/livro/emprestar')
-            .then(() => carregarLivro());
-    }
-
-    function devolverLivro() {
-        fetch('/livro/devolver')
-            .then(() => carregarLivro());
-    }
-
-    carregarLivro();
-</script>
+        carregarLivros();
+    </script>
 
 </body>
 </html>
